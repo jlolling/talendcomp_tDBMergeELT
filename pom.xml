@@ -1,0 +1,56 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>de.jlo.talendcomp.dbmerge</groupId>
+	<artifactId>jlo-talendcomp-dbmerge</artifactId>
+
+	<dependencies>
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>4.12</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.logging.log4j</groupId>
+			<artifactId>log4j-api</artifactId>
+			<version>2.18.0</version>
+			<scope>provided</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<source>1.8</source>
+					<target>1.8</target>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>de.cimt.talendcomp</groupId>
+				<artifactId>cimt-talendcomp-maven-plugin</artifactId>
+				<version>2.1</version>
+				<configuration>
+					<copyFromSourceBaseDir>${project.basedir}/talend_component</copyFromSourceBaseDir>
+					<componentBaseDir>${project.basedir}/talend_component</componentBaseDir>
+					<studioUserComponentFolder>/Data/Talend/Studio/talend_user_components</studioUserComponentFolder>
+				</configuration>
+				<executions>
+					<execution>
+						<id>tDBMergeELT</id>
+						<goals>
+							<goal>component</goal>
+						</goals>
+						<configuration>
+							<componentName>tDBMergeELT</componentName>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+	<version>1.0</version>
+</project>

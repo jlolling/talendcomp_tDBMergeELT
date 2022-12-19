@@ -1,0 +1,105 @@
+<%@ jet 
+	imports="
+		org.talend.core.model.process.INode  
+		org.talend.core.model.process.ElementParameterParser
+		org.talend.designer.codegen.config.CodeGeneratorArgument
+		java.util.Map
+		java.util.List
+	"
+%>
+
+<%
+	CodeGeneratorArgument codeGenArgument = (CodeGeneratorArgument) argument;
+	INode node = (INode)codeGenArgument.getArgument();
+	String cid = node.getUniqueName();
+	String connCompName = ElementParameterParser.getValue(node, "__CONNECTION__");
+	String sourceQuery = ElementParameterParser.getValue(node, "__SOURCE_SELECT__");
+	if (sourceQuery != null) {
+		sourceQuery = sourceQuery.replaceAll("\r\n","\\\\n").replaceAll("\n","\\\\n");
+	}
+	String targetTable = ElementParameterParser.getValue(node, "__TARGET_TABLE__");
+	boolean allowInsert = "true".equals(ElementParameterParser.getValue(node, "__ALLOW_INSERT__"));
+	boolean allowUpdate = "true".equals(ElementParameterParser.getValue(node, "__ALLOW_UPDATE__"));
+	boolean allowDelete = "true".equals(ElementParameterParser.getValue(node, "__ALLOW_DELETE__"));
+	boolean updateWhereEnabled = "true".equals(ElementParameterParser.getValue(node, "__ENABLE_UPDATE_WHERE__"));
+	String updateWhereCondition = ElementParameterParser.getValue(node, "__UPDATE_WHERE__");
+	if (updateWhereEnabled == false || updateWhereCondition == null || updateWhereCondition.trim().isEmpty()) {
+		updateWhereCondition = "null";
+	}
+	String deleteWhereCondition = ElementParameterParser.getValue(node, "__DELETE_WHERE__");
+	boolean allowExcludeColumns = "true".equals(ElementParameterParser.getValue(node, "__ALLOW_EXCLUDE_COLUMNS__"));
+	List<Map<String, String>> excludeFieldList = null;
+	if (allowExcludeColumns) {
+		excludeFieldList = (List<Map<String, String>>) ElementParameterParser.getObjectValue(node, "__EXCLUDE_COLUMNS__");
+	}
+	boolean allowFixedColumnValues = "true".equals(ElementParameterParser.getValue(node, "__ALLOW_FIXED_COLUMN_VALUES__"));
+	List<Map<String, String>> fixedColumnValueList = null;
+	if (allowFixedColumnValues) {
+		fixedColumnValueList = (List<Map<String, String>>) ElementParameterParser.getObjectValue(node, "__FIXED_COLUMN_VALUES__");
+	}
+	boolean doCommit = "true".equals(ElementParameterParser.getValue(node, "__DO_COMMIT__"));
+	boolean allowUpdateOnlyColumns = "true".equals(ElementParameterParser.getValue(node, "__ENABLE_UPDATE_COLUMNS__"));
+	List<Map<String, String>> updateOnlyColumns = null;
+	if (allowUpdateOnlyColumns) {
+		updateOnlyColumns = (List<Map<String, String>>) ElementParameterParser.getObjectValue(node, "__UPDATE_ONLY_COLUMNS__");
+	}
+	List<Map<String, String>> keywords = (List<Map<String, String>>) ElementParameterParser.getObjectValue(node, "__KEYWORDS__");
+%>
+	de.jlo.talendcomp.dbmerge.DBMerge <%=cid%> = new de.jlo.talendcomp.dbmerge.DBMerge((java.sql.Connection) globalMap.get("conn_" + "<%=connCompName%>"));
+<%	if (keywords != null) {
+      for (Map<String, String> entry : keywords) { %>
+	<%=cid%>.addKeyword(<%=entry.get("WORD")%>);
+<%    } %>
+<%	} %>
+   // use our own query as source
+   String <%=cid%>_query = <%=sourceQuery%>;
+	<%=cid%>.setSourceSelectCode(<%=cid%>_query);
+	<%=cid%>.setAllowInsert(<%=allowInsert%>);
+	<%=cid%>.setAllowUpdate(<%=allowUpdate%>);
+<%	if (updateOnlyColumns != null) {
+      for (Map<String, String> entry : updateOnlyColumns) { %>
+	<%=cid%>.addUpdateOnlyColumn(<%=entry.get("COLUMN")%>);
+<%    } %>
+<%	} %>
+	<%=cid%>.setAllowDelete(<%=allowDelete%>);
+	<%=cid%>.setUpdateWhereCondition(<%=updateWhereCondition%>);
+	<%=cid%>.setDeleteWhereCondition(<%=deleteWhereCondition%>);
+<%	if (excludeFieldList != null) {
+      for (Map<String, String> entry : excludeFieldList) { %>
+	<%=cid%>.addExcludeColumn(<%=entry.get("COLUMN")%>);
+<%    } %>
+<%	} %>
+<%	if (fixedColumnValueList != null) {
+		for (Map<String, String> entry : fixedColumnValueList) {
+			String columnName = entry.get("COLUMN_NAME");
+			String columnValue = entry.get("COLUMN_VALUE");
+			if (columnName != null && columnName.trim().isEmpty() == false && columnValue != null && columnValue.trim().isEmpty() == false) { %>
+	<%=cid%>.setFixedColumnValue(<%=columnName.trim()%>, <%=columnValue.trim()%>);
+<%       } %>	      
+<%		} %>
+<%	} %>		
+	<%=cid%>.setTargetTableName(<%=targetTable%>);
+	try {
+		<%=cid%>.init();
+	} catch (Exception e) {
+		String message = "Init failed: " + e.getMessage();
+		globalMap.put("<%=cid%>_ERROR_MESSAGE", message);
+		throw new Exception(message, e);
+	}
+	try {
+		globalMap.put("<%=cid%>_QUERY", <%=cid%>.buildMergeStatement());
+	} catch (Exception e) {
+		String message = "Build merge statement failed: " + e.getMessage();
+		globalMap.put("<%=cid%>_ERROR_MESSAGE", message);
+		throw new Exception(message, e);
+	}
+	<%=cid%>.setDoCommit(<%=doCommit%>);
+	try {
+		int count = <%=cid%>.execute();
+		globalMap.put("<%=cid%>_NB_LINE", count); 
+	} catch (Exception e) {
+		String message = "Execute merge statement failed: " + e.getMessage();
+		globalMap.put("<%=cid%>_ERROR_MESSAGE", message);
+		throw new Exception(message, e);
+	}
+		

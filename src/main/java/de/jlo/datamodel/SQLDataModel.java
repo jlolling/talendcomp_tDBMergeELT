@@ -1,3 +1,18 @@
+/**
+ * Copyright 2022 Jan Lolling jan.lolling@gmail.com
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package de.jlo.datamodel;
 
 import java.sql.Connection;
@@ -7,16 +22,15 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.swing.SwingUtilities;
-
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import de.jlo.datamodel.ext.DatabaseExtension;
 import de.jlo.datamodel.ext.DatabaseExtensionFactory;
 
 public final class SQLDataModel extends SQLObject implements Comparable<SQLDataModel> {
 
-	private static final Logger logger = Logger.getLogger(SQLDataModel.class);
+	private static final Logger logger = LogManager.getLogger(SQLDataModel.class);
 	private String errorMessage;
 	private final List<SQLCatalog> catalogs = new ArrayList<SQLCatalog>();
 	private boolean loadingSchemas = false;
@@ -28,48 +42,8 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 	private boolean schemasLoaded = false;
 	private boolean catalogsLoaded = false;
 	private SQLSchema currentSQLSchema = null;
-	private ArrayList<DatamodelListener> listener = new ArrayList<DatamodelListener>();
 	private DatabaseExtension databaseExtension;
 	private Connection connection;
-	
-	public void addDatamodelListener(DatamodelListener l) {
-		if (listener.contains(l) == false) {
-			listener.add(l);
-		}
-	}
-	
-	public void removeDatamodelListener(DatamodelListener l) {
-		listener.remove(l);
-	}
-	
-	public void removeAllDatamodelListener() {
-		listener.clear();
-	}
-	
-	private void fireDatamodelEvent(final String message, final int type) {
-		if (listener.isEmpty() == false) {
-			if (SwingUtilities.isEventDispatchThread()) {
-				doFireDatemodelEvent(message, type);
-			} else {
-				SwingUtilities.invokeLater(new Runnable() {
-					@Override
-					public void run() {
-						doFireDatemodelEvent(message, type);
-					}
-				});
-			}
-		}
-	}
-	
-	private void doFireDatemodelEvent(String message, int type) {
-		if (logger.isDebugEnabled()) {
-			logger.debug(message);
-		}
-		DatamodelEvent e = new DatamodelEvent(this, message, type);
-		for (DatamodelListener l : listener) {
-			l.eventHappend(e);
-		}
-	}
 	
 	public boolean isUseLowerCaeIdentifiers() {
 		return useLowerCaseIdentifiers;
@@ -127,7 +101,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 		}
 		boolean ok = false;
 		try {
-			fireDatamodelEvent("Loading catalogs", DatamodelEvent.ACTION_MESSAGE_EVENT);
 			DatabaseMetaData dbmd = conn.getMetaData();
 			if (dbmd != null) {
 				useLowerCaseIdentifiers = dbmd.storesLowerCaseIdentifiers();
@@ -162,7 +135,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 		} finally {
 			loadingCatalogs = false;
 		}
-		fireDatamodelEvent("Loading catalogs finished (" + catalogs.size() + ")", DatamodelEvent.ACTION_MESSAGE_EVENT);
 		for (SQLCatalog catalog : catalogs) {
 			loadSchemas(catalog);
 		}
@@ -187,7 +159,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 			return false;
 		}
 		boolean ok = false;
-		fireDatamodelEvent("Loading schemas for catalog", DatamodelEvent.ACTION_MESSAGE_EVENT);
 		try {
 			DatabaseMetaData dbmd = conn.getMetaData();
 			if (dbmd != null) {
@@ -218,13 +189,11 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 			}
 			errorMessage = "loadSchemas (schemas) for catalog: " + catalog.getName() + " failed: " + e.getMessage();
 			logger.error(errorMessage);
-			fireDatamodelEvent("Loading schemas failed.", DatamodelEvent.ACTION_MESSAGE_EVENT);
 			return false;
 		} finally {
 			loadingSchemas = false;
 			catalog.setLoadingSchemas(false);
 		}
-		fireDatamodelEvent("Loading catalogs+schemas finished (" + catalogs.size() + ")", DatamodelEvent.ACTION_MESSAGE_EVENT);
 		return ok;
 	}
 	
@@ -374,7 +343,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 			return false;
 		}
 		try {
-			fireDatamodelEvent("Loading tables and views...", DatamodelEvent.ACTION_MESSAGE_EVENT);
 			ok = databaseExtension.loadTables(conn, schema);
 			schema.setTablesLoaded();
 		} catch (SQLException sqle) {
@@ -386,12 +354,10 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 				// ignore
 			}
 			errorMessage = "loadTables for schema=" + schema + " failed: " + sqle.getMessage();
-			fireDatamodelEvent("Loading tables failed.", DatamodelEvent.ACTION_MESSAGE_EVENT);
 			return false;
 		} finally {
 			schema.setLoadingTables(false);
 		}
-		fireDatamodelEvent("Loading tables and views finished: " + schema.getTableCount() + " tables.", DatamodelEvent.ACTION_MESSAGE_EVENT);
 		return ok;
 	}
 	
@@ -410,9 +376,7 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 			if (conn == null) {
 				return false;
 			}
-			fireDatamodelEvent("Loading sequences...", DatamodelEvent.ACTION_MESSAGE_EVENT);
 			databaseExtension.listSequences(conn, schema);
-			fireDatamodelEvent("Loading sequences for " + schema + " finished: " + schema.getSequenceCount() + " sequences.", DatamodelEvent.ACTION_MESSAGE_EVENT);
 			return true;
 		} else {
 			return false;
@@ -441,15 +405,12 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 			return false;
 		}
 		try {
-			fireDatamodelEvent("Load procedures for " + schema, DatamodelEvent.ACTION_MESSAGE_EVENT);
 			databaseExtension.loadProcedures(conn, schema);
-			fireDatamodelEvent("Loading procedure source code", DatamodelEvent.ACTION_MESSAGE_EVENT);
 			for (int i = 0; i < schema.getProcedureCount(); i++) {
 				SQLProcedure p = schema.getProcedureAt(i);
 				databaseExtension.setupProcedureSQLCode(conn, p);
 			}
 			ok = true;
-			fireDatamodelEvent("Load procedures for " + schema + " finished: " + schema.getProcedureCount() + " procedures.", DatamodelEvent.ACTION_MESSAGE_EVENT);
 		} catch (SQLException sqle) {
 			try {
 				if (conn.getAutoCommit() == false) {
@@ -463,7 +424,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 				+ schema 
 				+ " failed: "
 				+ sqle.getMessage();
-			fireDatamodelEvent("Load procedures failed.", DatamodelEvent.ACTION_MESSAGE_EVENT);
 			return false;
 		} finally {
 			schema.setLoadingProcedures(false);
@@ -493,7 +453,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 			return false;
 		}
 		try {
-			fireDatamodelEvent("Load columns for " + table, DatamodelEvent.ACTION_MESSAGE_EVENT);
 			DatabaseMetaData dbmd = conn.getMetaData();
 			if (dbmd != null) {
 				SQLField field = null;
@@ -524,8 +483,9 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 							}
 						}
 						rs.close();
+					} else {
+						logger.error("No ResultSet received for getColumns(" + table.getSchema().getCatalog().getKey() + "," + table.getSchema().getKey() + "," + table.getName());
 					}
-					fireDatamodelEvent("Loading columns finished", DatamodelEvent.ACTION_MESSAGE_EVENT);
 					if (table.isView()) {
 						if (table.isMaterializedView()) {
 							if (ignoreIndices == false) {
@@ -550,7 +510,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 						// ignore
 					}
 					logger.error("loadColumns (get columns) for table=" + table + " failed: " + sqle.getMessage());
-					fireDatamodelEvent("Loading columns for table=" + table + " failed", DatamodelEvent.ACTION_MESSAGE_EVENT);
 					table.setLoadingColumns(false);
 					return false;
 				} finally {
@@ -588,7 +547,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 			return false;
 		}
 		try {
-			fireDatamodelEvent("Load primary key constraints for table " + table, DatamodelEvent.ACTION_MESSAGE_EVENT);
 			DatabaseMetaData dbmd = conn.getMetaData();
 			if (dbmd != null) {
 				table.clearConstraints();
@@ -645,7 +603,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 					return false;
 				}
 				try {
-					fireDatamodelEvent("Load foreign key constraints for table " + table, DatamodelEvent.ACTION_MESSAGE_EVENT);
 					final ResultSet rs = dbmd.getImportedKeys(
 							table.getSchema().getCatalog().getKey(), 
 							table.getSchema().getKey(), 
@@ -700,7 +657,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 		} finally {
 			table.setLoadingConstraints(false);
 		}
-		fireDatamodelEvent("Loading constraints finished", DatamodelEvent.ACTION_MESSAGE_EVENT);
 		return true;
 	}
 	
@@ -720,7 +676,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 			return false;
 		}
 		try {
-			fireDatamodelEvent("Load indexes for table " + table, DatamodelEvent.ACTION_MESSAGE_EVENT);
 			DatabaseMetaData dbmd = conn.getMetaData();
 			if (dbmd != null) {
 				table.clearIndexes();
@@ -741,8 +696,8 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 							Object nonUnique = rs.getObject("NON_UNIQUE");
 							if (nonUnique instanceof Boolean) {
 								unique = !((Boolean) nonUnique).booleanValue();
-							} else if (nonUnique instanceof Number) {
-								unique = ((Number) nonUnique).intValue() == 0;
+							} else if (nonUnique instanceof Integer) {
+								unique = ((Integer) nonUnique).intValue() == 0;
 							} else if (nonUnique instanceof String) {
 								unique = !Boolean.parseBoolean((String) nonUnique);
 							}
@@ -781,7 +736,6 @@ public final class SQLDataModel extends SQLObject implements Comparable<SQLDataM
 				// ignore
 			}
 			logger.error("loadIndexes failed: " + e.getMessage(), e);
-			fireDatamodelEvent("Load indexes for table " + table + " failed.", DatamodelEvent.ACTION_MESSAGE_EVENT);
 			return false;
 		} finally {
 			table.setLoadingIndexes(false);

@@ -17,10 +17,10 @@ import org.junit.Test;
 import de.jlo.datamodel.SQLTable;
 import de.jlo.talendcomp.dbmerge.DBMerge;
 
-public class TestOracleMerge {
+public class TestDBMerge {
 	
 	private Connection connection = null;
-	private static final String configFile = "/Data/Talend/testdata/oracle_test_db.properties";
+	private static final String configFile = "/var/testdata/oracle_test_db.properties";
 	
 	@Before
 	public void connect() throws Exception {

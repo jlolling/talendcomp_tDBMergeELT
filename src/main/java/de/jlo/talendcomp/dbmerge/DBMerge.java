@@ -108,7 +108,7 @@ public class DBMerge {
 		}
 	}
 	
-	protected final SQLTable getTargetSQLTable() throws Exception {
+	public final SQLTable getTargetSQLTable() throws Exception {
 		final String tableAndSchemaName = this.targetTableName;
 		if (targetTable == null || targetTable.getAbsoluteName().equalsIgnoreCase(tableAndSchemaName) == false) {
 			String schemaName = getSchemaName(tableAndSchemaName);

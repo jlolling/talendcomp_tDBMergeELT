@@ -1,3 +1,18 @@
+/**
+ * Copyright 2022 Jan Lolling jan.lolling@gmail.com
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package de.jlo.datamodel.ext;
 
 import java.sql.Connection;
@@ -10,7 +25,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import de.jlo.datamodel.BasicDataType;
 import de.jlo.datamodel.Field;
@@ -23,7 +39,7 @@ import de.jlo.datamodel.SQLTrigger;
 
 public class GenericDatabaseExtension implements DatabaseExtension {
 
-	private static final Logger logger = Logger.getLogger(GenericDatabaseExtension.class);
+	private static final Logger logger = LogManager.getLogger(GenericDatabaseExtension.class);
 	private List<String> listkeywords = new ArrayList<String>();
 	private List<String> listdatatypes = new ArrayList<String>();
 	private List<String> listprockeywords = new ArrayList<String>();
@@ -82,7 +98,7 @@ public class GenericDatabaseExtension implements DatabaseExtension {
         } else if ("smallint".equalsIgnoreCase(field.getTypeName())) {
             field.setTypeSQLCode("smallint");
     		field.setBasicType(BasicDataType.INTEGER.getId());
-        } else if ("double".equalsIgnoreCase(field.getTypeName()) || "number".equalsIgnoreCase(field.getTypeName()) || "decimal".equalsIgnoreCase(field.getTypeName())) {
+        } else if ("double".equalsIgnoreCase(field.getTypeName())) {
         	field.setTypeSQLCode("double");
     		field.setBasicType(BasicDataType.DOUBLE.getId());
         } else if ("bool".equalsIgnoreCase(field.getTypeName())) {

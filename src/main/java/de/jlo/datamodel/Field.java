@@ -23,12 +23,5 @@ public interface Field {
 	void setJavaClass(Class<?> clazz);
 	
 	Class<?> getJavaClass();
-	
-	public boolean isNumber();
 
-	public boolean isDate();
-
-	public boolean isString();
-
-	public boolean isBoolean();
 }

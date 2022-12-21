@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.StringTokenizer;
 
 import de.jlo.datamodel.SQLDataModel;
 import de.jlo.datamodel.SQLField;
@@ -36,6 +37,7 @@ public class DBMerge {
 	private String currentMergeSQLCode = null;
 	private boolean doCommit = true;
 	private List<String> keywords = new ArrayList<>();
+	private String ec = "\"";
 	
 	public DBMerge(Connection connection) {
 		this.connection = connection;
@@ -47,9 +49,12 @@ public class DBMerge {
 		keywords.add("FROM");
 		keywords.add("HEADER");
 		keywords.add("INT");		
+		keywords.add("INTEGER");		
+		keywords.add("IDENTIFIED");		
 		keywords.add("LABEL");
-		keywords.add("LIMIT");
+		keywords.add("LENGTH");
 		keywords.add("LIST");
+		keywords.add("LIMIT");
 		keywords.add("MASTER");
 		keywords.add("MINIMUM");
 		keywords.add("NUMBER");
@@ -68,11 +73,16 @@ public class DBMerge {
 		keywords.add("TO");
 		keywords.add("TYPE");
 		keywords.add("UNLIMITED");	
+		keywords.add("USER");	
 		keywords.add("VALUE");
 		keywords.add("VALUES");
 		keywords.add("VARCHAR");
 		keywords.add("WHERE");
-		keywords.add("ZONE");	
+		keywords.add("ZONE");
+		keywords.add("MONTH");
+		keywords.add("WEEK");
+		keywords.add("YEAR");
+		keywords.add("DAY");
 	}
 
 	public void init() throws Exception {
@@ -146,7 +156,7 @@ public class DBMerge {
 		}
 		StringBuilder sb = new StringBuilder();
 		sb.append("merge into ");
-		sb.append(targetTable.getName());
+		sb.append(getEncapsulatedName(targetTableName));
 		sb.append(" t\nusing (\n");
 		sb.append(sourceSelectCode);
 		sb.append("\n) s");
@@ -166,19 +176,19 @@ public class DBMerge {
 					}
 					if (field.isNullValueAllowed()) {
 						sb.append("((t.");
-						sb.append(getColumnName(field.getName()));
+						sb.append(getEncapsulatedName(field.getName()));
 						sb.append(" is null and s.");
-						sb.append(getColumnName(field.getName()));
+						sb.append(getEncapsulatedName(field.getName()));
 						sb.append(" is null) or (t.");
-						sb.append(getColumnName(field.getName()));
+						sb.append(getEncapsulatedName(field.getName()));
 						sb.append("=s.");
-						sb.append(getColumnName(field.getName()));
+						sb.append(getEncapsulatedName(field.getName()));
 						sb.append("))");
 					} else {
 						sb.append("t.");
-						sb.append(getColumnName(field.getName()));
+						sb.append(getEncapsulatedName(field.getName()));
 						sb.append("=s.");
-						sb.append(getColumnName(field.getName()));
+						sb.append(getEncapsulatedName(field.getName()));
 					}
 				} else {
 					throw new Exception("A primary key column cannot be set or compared with a fixed value.");
@@ -215,9 +225,9 @@ public class DBMerge {
 			} else {
 				sb.append(",\n    t.");
 			}
-			sb.append(getColumnName(fieldName));
+			sb.append(getEncapsulatedName(fieldName));
 			sb.append("=s.");
-			sb.append(getColumnName(fieldName));
+			sb.append(getEncapsulatedName(fieldName));
 		}
 		// add fixed value columns
 		for (String fieldName : targetTable.getNonPrimaryKeyFieldNames()) {
@@ -228,7 +238,7 @@ public class DBMerge {
 				} else {
 					sb.append(",\n    t.");
 				}
-				sb.append(getColumnName(fieldName));
+				sb.append(getEncapsulatedName(fieldName));
 				sb.append("=?");
 			}
 		}
@@ -264,14 +274,6 @@ public class DBMerge {
 		return false;
 	}
 	
-	private String getColumnName(String fieldName) {
-		if (isKeyword(fieldName)) {
-			return "\"" + fieldName + "\"";
-		} else {
-			return fieldName;
-		}
-	}
-
 	private void buildInsertPart(StringBuilder sb) {
 		sb.append("when not matched then\n  insert (");
 		boolean firstLoop = true;
@@ -288,7 +290,7 @@ public class DBMerge {
 			} else {
 				sb.append(",t.");
 			}
-			sb.append(getColumnName(fieldName));
+			sb.append(getEncapsulatedName(fieldName));
 		}
 		for (ColumnValue cv : fixedColumnValueList) {
 			if (firstLoop) {
@@ -297,7 +299,7 @@ public class DBMerge {
 			} else {
 				sb.append(",t.");
 			}
-			sb.append(cv.getColumnName());
+			sb.append(getEncapsulatedName(cv.getColumnName()));
 		}
 		sb.append(")\n  values (");
 		firstLoop = true;
@@ -314,7 +316,7 @@ public class DBMerge {
 			} else {
 				sb.append(",s.");
 			}
-			sb.append(getColumnName(fieldName));
+			sb.append(getEncapsulatedName(fieldName));
 		}
 		for (int i = 1; i <= fixedColumnValueList.size(); i++) {
 			if (firstLoop) {
@@ -387,8 +389,12 @@ public class DBMerge {
 		try {
 			count = ps.executeUpdate();
 		} catch (SQLException sqle) {
-			if (doCommit && connection.getAutoCommit() == false) {
-				connection.rollback();
+			try {
+				if (doCommit && connection.getAutoCommit() == false) {
+					connection.rollback();
+				}
+			} catch (Exception x) {
+				// intentionally empty
 			}
 			throw new Exception("Execute merge failed: " + sqle.getMessage() + "\nSQL:\n" + currentMergeSQLCode, sqle);
 		}
@@ -520,15 +526,45 @@ public class DBMerge {
 		}
 	}
 	
-	private boolean isKeyword(String fieldName) {
-		if (fieldName != null) {
-			fieldName = fieldName.trim().toUpperCase();
-		}
-		if (keywords.contains(fieldName)) {
-			return true;
+	public String getEncapsulatedName(String name) {
+		if (containsKeyword(name) || name.indexOf('-') != -1 || name.indexOf('/') != -1 || name.indexOf(' ') != -1 || name.indexOf("$") != -1) {
+			// we need encapsulation
+			StringBuilder sb = new StringBuilder();
+			StringTokenizer st = new StringTokenizer(name, ".");
+			String s = null;
+			boolean firstLoop = true;
+			while (st.hasMoreTokens()) {
+				if (firstLoop) {
+					firstLoop = false;
+				} else {
+					sb.append(".");
+				}
+				s = st.nextToken();
+				if (containsKeyword(s) || s.contains("-") || s.contains("/") || s.contains(" ") || s.contains("$")) {
+					if (s.contains(ec) == false) {
+						s = ec + s + ec;
+					}
+				}
+				sb.append(s);
+			}
+			return sb.toString();
 		} else {
-			return fieldName.startsWith("SYS_");
+			return name;
 		}
+	}
+
+	public boolean containsKeyword(String identifier) {
+		if (identifier != null) {
+			String[] names = identifier.split("\\.");
+			for (String name : names) {
+				for (String w : keywords) {
+					if (w.equalsIgnoreCase(name)) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 	
 }
